@@ -41,7 +41,7 @@ extern void glTexCoord2f( GLfloat s, GLfloat t );
 #define glPixelTransferf(x,z) glPixelTransferi(x, (GLint)(z + 0.5f))
 #define glTexEnvf(x,y,z) glTexEnvi(x, y, (GLint)(z + 0.5f))
 
-#define glVertex3f(x,y,z) glVertex2f(x,y)
+/*#define glVertex3f(x,y,z) glVertex2f(x,y)*/
 
 #include <EGL/egl.h>
 #include "matrix.h"  /* Prototypes */
@@ -153,6 +153,8 @@ int main(int argc,char **argv)
    }
    eglMakeCurrent( egl_display, egl_surface, egl_surface, egl_context );
 
+   gettimeofday (&tv1, NULL);
+
    /* Initializations */
    for (i=0; i<text_x*text_y; i++) {
       glyphs[i].alpha = 253;
@@ -173,8 +175,41 @@ int main(int argc,char **argv)
       if (i && speeds[i]==speeds[i-1]) speeds[i]=2;
    }
 
+   gettimeofday (&tv2, NULL);
+   printf("init time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
+
+   gettimeofday (&tv1, NULL);
+
    ourInit();
    cbResizeScene(screen_width, screen_height);
+
+   gettimeofday (&tv2, NULL);
+   printf("gfx init time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
+
+#if 0
+    {
+       glMatrixMode(GL_MODELVIEW);
+       glTranslatef(0.0f,0.0f,-89.0F);
+       glClear(GL_COLOR_BUFFER_BIT);
+
+       glBindTexture(GL_TEXTURE_2D,1);
+       glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_MODULATE);
+       /*glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST_MIPMAP_NEAREST);
+       glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);*/
+       glBegin(GL_QUADS); 
+         draw_char(1,46,253.0,10.0,21.0,8.0);
+       glEnd();
+
+
+       glLoadIdentity();
+       glMatrixMode(GL_PROJECTION);
+
+       eglSwapBuffers ( egl_display, egl_surface );
+       glFlush();
+
+       usleep(1000000);
+    }
+#endif
 
    while(1) {
 
@@ -183,9 +218,13 @@ int main(int argc,char **argv)
          cbKeyPressed(get_ascii_keycode(&xev), 0, 0);
       }
 
+      gettimeofday (&tv1, NULL);
       /* Render frame */
       cbRenderScene();
       glFlush();
+
+      gettimeofday (&tv2, NULL);
+      printf("elapsed time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
 
       usleep(50000);
    } 
