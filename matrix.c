@@ -36,7 +36,7 @@ extern void exit(int status);
 
 #include "gl.h"   /* OpenGL SC header */
 extern void glTexCoord2f( GLfloat s, GLfloat t );
-#define GL_QUADS				0x0007
+#define GL_QUADS                0x0007
 #define glTexParameterf(x,y,z) glTexParameteri(x, y, (GLint)(z + 0.5f))
 #define glPixelTransferf(x,z) glPixelTransferi(x, (GLint)(z + 0.5f))
 #define glTexEnvf(x,y,z) glTexEnvi(x, y, (GLint)(z + 0.5f))
@@ -194,8 +194,6 @@ int main(int argc,char **argv)
 
        glBindTexture(GL_TEXTURE_2D,1);
        glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_MODULATE);
-       /*glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST_MIPMAP_NEAREST);
-       glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);*/
        glBegin(GL_QUADS); 
          draw_char(1,46,253.0,10.0,21.0,8.0);
        glEnd();
@@ -254,7 +252,7 @@ static void draw_char(int mode, long num, float light, float x, float y, float z
 /* Draw flare around white characters */
 static void draw_flare(float x,float y,float z)
 {
-   glColor4f(0.9,0.4,0.3,.75);
+   glColor4f(0,9.4,0.3,.75);
 
    glTexCoord2f(0,    0);    glVertex3f(x-1, y+1, z);
    glTexCoord2f(0.75, 0);    glVertex3f(x+2, y+1, z);
@@ -351,8 +349,6 @@ static void cbRenderScene(void)
 
    glBindTexture(GL_TEXTURE_2D,1);
    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_MODULATE);
-   /*glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_MIN_FILTER,GL_NEAREST_MIPMAP_NEAREST);
-   glTexParameterf(GL_TEXTURE_2D,GL_TEXTURE_MAG_FILTER,GL_NEAREST);*/
    glBegin(GL_QUADS); 
      draw_text1();
    glEnd();
@@ -386,10 +382,10 @@ static void cbKeyPressed(unsigned char key, int x, int y)
    }
 }
 
-void gluPerspective(	GLfloat fovy,
- 	GLfloat aspect,
- 	GLfloat zNear,
- 	GLfloat zFar)
+void gluPerspective(    GLfloat fovy,
+     GLfloat aspect,
+     GLfloat zNear,
+     GLfloat zFar)
 {
     /*GLfloat t = tan( (GLfloat)(fovy / 360.0f * 3.14159f) );*/
     /*GLfloat t = 0.414213f; /* tan calc with fovy = 45 */
@@ -408,44 +404,53 @@ static void cbResizeScene(int width, int height)
    glMatrixMode(GL_MODELVIEW);
 }
 
-static GLint gluBuild2DMipmaps(	GLenum target,
- 	GLint internalFormat,
- 	GLsizei width,
- 	GLsizei height,
- 	GLenum format,
- 	GLenum type,
- 	void * data)
+static GLint gluBuild2DMipmaps(    GLenum target,
+     GLint internalFormat,
+     GLsizei width,
+     GLsizei height,
+     GLenum format,
+     GLenum type,
+     void * data)
 {
-    unsigned char (*data1)[131072]=data;
-    unsigned char data2[131072];
-    int w,h,d,l;
-    GLsizei i1,j1,i2,j2;
 
     glTexImage2D(target,0, internalFormat, width, height, 0, format, type, data);
 
-    /* generate mimap manually */
-    w=width/2;h=height/2;d=2;l=1;
-    do
+#ifdef AUTO_MIPMAP
+    glGenerateMipmap(target);
+#elif defined(MANUAL_MIPMAP)
     {
-	    (w<1)?w=1:w;
-	    (h<1)?h=1:h;
+        unsigned char (*data1)[131072]=data;
+        unsigned char data2[131072];
+        int w,h,d,l;
+        GLsizei i1,j1,i2,j2;
 
-        for (i1=0,i2=0; i1<width; i1+=d,i2++)
+        /* generate mimap manually */
+        w=width/2;h=height/2;d=2;l=1;
+        do
         {
-            for (j1=0,j2=0; j1<height; j1+=d,j2++)
+            (w<1)?w=1:w;
+            (h<1)?h=1:h;
+
+            for (i1=0,i2=0; i1<width; i1+=d,i2++)
             {
-	            data2[i2*h+j2]=(*data1)[i1*height+j1];
+                for (j1=0,j2=0; j1<height; j1+=d,j2++)
+                {
+                    data2[i2*h+j2]=(*data1)[i1*height+j1];
+                }
             }
+            glTexImage2D(target,l, internalFormat, w, h, 0, format, type, data2);
+
+            w/=2;h/=2;d*=2;l+=1;
         }
-        glTexImage2D(target,l, internalFormat, w, h, 0, format, type, data2);
-
-	    w/=2;h/=2;d*=2;l+=1;
+        while(w>0 || h>0);
+        glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
+        glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
     }
-    while(w>0 || h>0);
-
-   /*glGenerateMipmap(target);*/
-   /*glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_NEAREST);
-   glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);*/
+#else
+    /* no mipmap */
+    glTexParameteri(target, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(target, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+#endif
 
    return 0;
 }
@@ -458,6 +463,7 @@ static void ourInit(void)
    glBindTexture(GL_TEXTURE_2D,1);
    gluBuild2DMipmaps(GL_TEXTURE_2D,GL_LUMINANCE, 512, 256, GL_LUMINANCE, 
       GL_UNSIGNED_BYTE, (void *)font);
+
    glBindTexture(GL_TEXTURE_2D,2);
    gluBuild2DMipmaps(GL_TEXTURE_2D,GL_LUMINANCE, 4, 4, GL_LUMINANCE, 
       GL_UNSIGNED_BYTE, (void *)flare);
