@@ -1,7 +1,7 @@
 INCLUDE = -I/usr/X11R6/include/ 
 LIBDIR  = -L/usr/X11R6/lib 
 
-CFLAGS = -g -Wall -pedantic -ansi -W -Wno-unused
+CFLAGS = -g -Wall -pedantic -ansi
 CC = gcc
 LIBRARIES = -lX11 -lEGL -lGL -lm
 

@@ -41,7 +41,6 @@ extern void glTexCoord2f( GLfloat s, GLfloat t );
 #define glPixelTransferf(x,z) glPixelTransferi(x, (GLint)(z + 0.5f))
 #define glTexEnvf(x,y,z) glTexEnvi(x, y, (GLint)(z + 0.5f))
 
-/*#define glVertex3f(x,y,z) glVertex2f(x,y)*/
 
 #include <EGL/egl.h>
 #include "matrix.h"  /* Prototypes */
@@ -58,12 +57,11 @@ unsigned char speeds[text_x]; /* Speed of each column (0-2) */
 typedef struct {
    unsigned char num;   /* Character number (0-59) */
    unsigned char alpha; /* Alpha modifier */
-   float z;             /* Cached Z coordinate */
 } t_glyph;
 t_glyph glyphs[sizeof(t_glyph) * (text_x * text_y)];
 
 int pic_fade=0;            /* Makes all chars lighter/darker */
-int rain_intensity=1;      /* Intensity of digital rain */
+int rain_intensity=2;      /* Intensity of digital rain */
 
 #ifndef GLUT
 Display                 *dpy;
@@ -95,10 +93,7 @@ int rand(void) {
 
 int main(int argc,char **argv) 
 {
-   int i=0,a=0,s=0;
-
-   int wuse=2;        /* Window method 2-windowed, 1-fs, 0-preview */
-   Window wid=0;      /* ID of window, used to grab preview size */
+   int i=0;
 
    EGLConfig  ecfg;
    EGLint     num_config;
@@ -159,7 +154,6 @@ int main(int argc,char **argv)
    for (i=0; i<text_x*text_y; i++) {
       glyphs[i].alpha = 253;
       glyphs[i].num   = rand()%60;
-      glyphs[i].z     = 0;
    }
 
    /* Init the light tables */
@@ -186,29 +180,6 @@ int main(int argc,char **argv)
    gettimeofday (&tv2, NULL);
    printf("gfx init time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
 
-#if 0
-    {
-       glMatrixMode(GL_MODELVIEW);
-       glTranslatef(0.0f,0.0f,-89.0F);
-       glClear(GL_COLOR_BUFFER_BIT);
-
-       glBindTexture(GL_TEXTURE_2D,1);
-       glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_MODULATE);
-       glBegin(GL_QUADS); 
-         draw_char(1,46,253.0,10.0,21.0,8.0);
-       glEnd();
-
-
-       glLoadIdentity();
-       glMatrixMode(GL_PROJECTION);
-
-       eglSwapBuffers ( egl_display, egl_surface );
-       glFlush();
-
-       usleep(1000000);
-    }
-#endif
-
    while(1) {
 
       /* Check events */
@@ -230,7 +201,7 @@ int main(int argc,char **argv)
 }
 
 /* Draw character #num on the screen. */
-static void draw_char(int mode, long num, float light, float x, float y, float z)
+static void draw_char(int mode, long num, float light, float x, float y)
 {
    /* The font texture is a grid of 10x6 characters. Texture coords are
     * normalized to [0,1] and (s,t) is the top-left texel of the character
@@ -241,38 +212,35 @@ static void draw_char(int mode, long num, float light, float x, float y, float z
    if(mode==1)
       glColor4f(0.0,0.7,0.0,light/255);
    else
-      glColor4f(0.9, 0.4, 0.3, light/255);
+      glColor4f(1.0, 1.0, 1.0, light/255);
 
-   glTexCoord2f(s,     t);       glVertex3f(x,   y,   z);
-   glTexCoord2f(s+0.1, t);       glVertex3f(x+1, y,   z);
-   glTexCoord2f(s+0.1, t-0.166); glVertex3f(x+1, y-1, z);
-   glTexCoord2f(s,     t-0.166); glVertex3f(x,   y-1, z);
+   glTexCoord2f(s,     t);       glVertex2f(x,   y  );
+   glTexCoord2f(s+0.1, t);       glVertex2f(x+1, y  );
+   glTexCoord2f(s+0.1, t-0.166); glVertex2f(x+1, y-1);
+   glTexCoord2f(s,     t-0.166); glVertex2f(x,   y-1);
 }
 
 /* Draw flare around white characters */
-static void draw_flare(float x,float y,float z)
+static void draw_flare(float x,float y)
 {
    glColor4f(0,9.4,0.3,.75);
 
-   glTexCoord2f(0,    0);    glVertex3f(x-1, y+1, z);
-   glTexCoord2f(0.75, 0);    glVertex3f(x+2, y+1, z);
-   glTexCoord2f(0.75, 0.75); glVertex3f(x+2, y-2, z);
-   glTexCoord2f(0,    0.75); glVertex3f(x-1, y-2, z);
+   glTexCoord2f(0,    0);    glVertex2f(x-1, y+1);
+   glTexCoord2f(0.75, 0);    glVertex2f(x+2, y+1);
+   glTexCoord2f(0.75, 0.75); glVertex2f(x+2, y-2);
+   glTexCoord2f(0,    0.75); glVertex2f(x-1, y-2);
 }
 
 /* Draw green text on screen */
 static void draw_text1(void)
 {
-   int x, y, i=0, b=0;
+   int x, y, i=0;
 
    /* For each character, from top-left to bottom-right of screen */
    for (y=text_y/2; y>-text_y/2; y--) {
       for (x=-text_x/2; x<text_x/2; x++, i++) {
          int light = clamp(glyphs[i].alpha + pic_fade, 0, 255);
-         int depth = 0;
-
-         glyphs[i].z = (float)(255-depth)/32; /* Map depth (0-255) to coord */
-         draw_char(1, glyphs[i].num, light, x, y, glyphs[i].z);
+         draw_char(1, glyphs[i].num, light, x, y);
       }
    }
 }
@@ -290,9 +258,9 @@ static void draw_text2(int mode)
          if (glyphs[i].alpha && !glyphs[i+text_x].alpha) {
             if (!mode) {
                /* White character */
-               draw_char(2, glyphs[i].num, 127.5, x, y, glyphs[i].z);
+               draw_char(2, glyphs[i].num, 127.5, x, y);
             } else {
-               draw_flare(x, y, glyphs[i].z);
+               draw_flare(x, y);
             }
          }
       }
@@ -344,18 +312,13 @@ static void cbRenderScene(void)
 {  
 
    glMatrixMode(GL_MODELVIEW);
-   glTranslatef(0.0f,0.0f,-89.0F);
-   glClear(GL_COLOR_BUFFER_BIT);
+   glTranslatef(0.0f,0.0f,-60.0F);
+   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
    glBindTexture(GL_TEXTURE_2D,1);
    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_MODULATE);
    glBegin(GL_QUADS); 
      draw_text1();
-   glEnd();
-
-   glBindTexture(GL_TEXTURE_2D,1);
-   glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_REPLACE);
-   glBegin(GL_QUADS);
      draw_text2(0);
    glEnd();
 
@@ -388,8 +351,8 @@ void gluPerspective(    GLfloat fovy,
      GLfloat zFar)
 {
     /*GLfloat t = tan( (GLfloat)(fovy / 360.0f * 3.14159f) );*/
-    /*GLfloat t = 0.414213f; /* tan calc with fovy = 45 */
-    GLfloat t = 0.267949f; /* tan calc with fovy = 30 */
+    GLfloat t = 0.414213f; /* tan calc with fovy = 45 */
+    /*GLfloat t = 0.267949f;*/ /* tan calc with fovy = 30 */
     GLfloat fH = t * zNear;
     GLfloat fW = fH * aspect;
     glFrustum( -fW, fW, -fH, fH, zNear, zFar );
@@ -400,7 +363,7 @@ static void cbResizeScene(int width, int height)
    glViewport(0, 0, width, height);
    glMatrixMode(GL_PROJECTION);
    glLoadIdentity();
-   gluPerspective(30.0f,(GLfloat)width/(GLfloat)height,0.1f,200.0f);
+   gluPerspective(45.0f,(GLfloat)width/(GLfloat)height,0.1f,200.0f);
    glMatrixMode(GL_MODELVIEW);
 }
 
