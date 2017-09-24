@@ -195,7 +195,7 @@ int main(int argc,char **argv)
       gettimeofday (&tv2, NULL);
       printf("elapsed time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
 
-      usleep(50000);
+      usleep(100000);
    } 
    return 0;
 }
@@ -231,7 +231,7 @@ static void draw_flare(float x,float y)
    glTexCoord2f(0,    0.75); glVertex2f(x-1, y-2);
 }
 
-/* Draw green text on screen */
+/* Draw green or white text on screen */
 static void draw_text1(void)
 {
    int x, y, i=0;
@@ -239,14 +239,22 @@ static void draw_text1(void)
    /* For each character, from top-left to bottom-right of screen */
    for (y=text_y/2; y>-text_y/2; y--) {
       for (x=-text_x/2; x<text_x/2; x++, i++) {
-         int light = clamp(glyphs[i].alpha + pic_fade, 0, 255);
-         draw_char(1, glyphs[i].num, light, x, y);
+         /* Highlight visible characters directly above a black stream */
+         if (y!=text_y/2 && glyphs[i-text_x].alpha && !glyphs[i].alpha) {
+            /* White character */
+            draw_char(2, glyphs[i].num, 127.5, x, y);
+         }
+         else
+         {
+            /* Green character */
+            draw_char(1, glyphs[i].num, glyphs[i].alpha, x, y);
+         }
       }
    }
 }
 
-/* Draw white characters and flares for each column */
-static void draw_text2(int mode)
+/* Draw flares for each column */
+static void draw_text2(void)
 {
    int x, y, i=0;
 
@@ -256,12 +264,7 @@ static void draw_text2(int mode)
       for (x=-text_x/2; x<text_x/2; x++, i++) {
          /* Highlight visible characters directly above a black stream */
          if (glyphs[i].alpha && !glyphs[i+text_x].alpha) {
-            if (!mode) {
-               /* White character */
-               draw_char(2, glyphs[i].num, 127.5, x, y);
-            } else {
-               draw_flare(x, y);
-            }
+            draw_flare(x, y);
          }
       }
    }
@@ -319,13 +322,12 @@ static void cbRenderScene(void)
    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_MODULATE);
    glBegin(GL_QUADS); 
      draw_text1();
-     draw_text2(0);
    glEnd();
 
    glBindTexture(GL_TEXTURE_2D,2);
    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_REPLACE);
    glBegin(GL_QUADS);
-     draw_text2(1);
+     draw_text2();
    glEnd();
 
    make_change();

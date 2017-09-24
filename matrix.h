@@ -28,7 +28,7 @@
 static void draw_char(int mode, long num, float light, float x, float y);
 static void draw_flare(float x,float y);
 static void draw_text1(void);
-static void draw_text2(int mode);
+static void draw_text2(void);
 static void scroll(void);
 static void make_change(void);
 static void cbRenderScene(void);
