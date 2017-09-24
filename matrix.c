@@ -74,7 +74,7 @@ unsigned char speeds[text_x]; /* Speed of each column (0-2) */
 typedef struct {
    unsigned char num;   /* Character number (0-59) */
    unsigned char alpha; /* Alpha modifier */
-   float z;             /* Cached Z coordinate */
+   unsigned char z;     /* Cached Z coordinate */
 } t_glyph;
 t_glyph glyphs[sizeof(t_glyph) * (text_x * text_y)];
 
@@ -214,7 +214,7 @@ int main(int argc,char **argv)
       gettimeofday (&tv2, NULL);
       printf("elapsed time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
 
-      usleep(100000);
+      usleep(50000);
    } 
    return 0;
 }
@@ -258,8 +258,8 @@ static void draw_text1(void)
    /* For each character, from top-left to bottom-right of screen */
    for (y=text_y/2; y>-text_y/2; y--) {
       for (x=-text_x/2; x<text_x/2; x++, i++) {
-         int light = clamp(glyphs[i].alpha + pic_fade, 0, 255);
-         int depth = 0;
+         unsigned char light = clamp(glyphs[i].alpha + pic_fade, 0, 255);
+         unsigned char depth = 0;
 
          /* If the coordinate is in the range of the 3D picture, set depth */
          if (x >= -rtext_x/2 && x<rtext_x/2) {
@@ -270,17 +270,17 @@ static void draw_text1(void)
             light-=depth; if (light<0) light=0;
          }
 
-         glyphs[i].z = (float)(255-depth)/32; /* Map depth (0-255) to coord */
+         glyphs[i].z = depth; /* Map depth (0-255) to coord */
 
          /* Highlight visible characters directly above a black stream */
          if (y!=text_y/2 && glyphs[i-text_x].alpha && !glyphs[i].alpha) {
             /* White character */
-            draw_char(2, glyphs[i].num, 127.5, x, y, glyphs[i].z);
+            draw_char(2, glyphs[i].num, 127.5, x, y, (float)(255-glyphs[i].z)/32);
          }
          else
          {
             /* Green character */
-            draw_char(1, glyphs[i].num, light, x, y, glyphs[i].z);
+            draw_char(1, glyphs[i].num, light, x, y, (float)(255-glyphs[i].z)/32);
          }
       }
    }
@@ -297,7 +297,7 @@ static void draw_text2(void)
       for (x=-text_x/2; x<text_x/2; x++, i++) {
          /* Highlight visible characters directly above a black stream */
          if (glyphs[i].alpha && !glyphs[i+text_x].alpha) {
-            draw_flare(x, y, glyphs[i].z);
+            draw_flare(x, y, (float)(255-glyphs[i].z)/32);
          }
       }
    }
