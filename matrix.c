@@ -44,26 +44,45 @@ extern void glTexCoord2f( GLfloat s, GLfloat t );
 
 #include <EGL/egl.h>
 #include "matrix.h"  /* Prototypes */
-#include "matrix1.h" /* Font data */
+#include "fonts.h"
 
-/* Global Variables */
 #define screen_height 900
 #define screen_width 1440
-#define text_y 50 /*70*/
+
+#if 1
+#include "images_90.h"
+/* Global Variables */
+#define VIEW_ANGLE 45.0f
+#define VIEW_DEPTH -89.0f  
+#define rtext_x 90
+#define text_y 70
 /* text_y * screen_width / screen_height */
-#define text_x 80 /*112*/
+#define text_x 112
+#else
+#include "images_80.h"
+/* Global Variables */
+#define VIEW_ANGLE 45.0f
+#define VIEW_DEPTH -68.0f  
+#define rtext_x 80
+#define text_y 50
+/* text_y * screen_width / screen_height */
+#define text_x 80
+#endif
+
 unsigned char speeds[text_x]; /* Speed of each column (0-2) */
 
 typedef struct {
    unsigned char num;   /* Character number (0-59) */
    unsigned char alpha; /* Alpha modifier */
+   float z;             /* Cached Z coordinate */
 } t_glyph;
 t_glyph glyphs[sizeof(t_glyph) * (text_x * text_y)];
 
+long timer=40;             /* Controls pic fade in/out */
 int pic_fade=0;            /* Makes all chars lighter/darker */
+int classic=0;             /* classic mode (no 3d) */
 int rain_intensity=2;      /* Intensity of digital rain */
 
-#ifndef GLUT
 Display                 *dpy;
 Window                  root;
 XVisualInfo             *vi;
@@ -71,11 +90,10 @@ XWindowAttributes       gwa;
 XSetWindowAttributes    swa;
 Window                  win;
 XEvent                  xev;
+
 EGLDisplay  egl_display;
 EGLContext  egl_context;
 EGLSurface  egl_surface;
-#endif
-
 
 static unsigned int g_seed;
 
@@ -154,6 +172,7 @@ int main(int argc,char **argv)
    for (i=0; i<text_x*text_y; i++) {
       glyphs[i].alpha = 253;
       glyphs[i].num   = rand()%60;
+      glyphs[i].z     = 0;
    }
 
    /* Init the light tables */
@@ -201,7 +220,7 @@ int main(int argc,char **argv)
 }
 
 /* Draw character #num on the screen. */
-static void draw_char(int mode, long num, float light, float x, float y)
+static void draw_char(int mode, long num, float light, float x, float y, float z)
 {
    /* The font texture is a grid of 10x6 characters. Texture coords are
     * normalized to [0,1] and (s,t) is the top-left texel of the character
@@ -214,40 +233,54 @@ static void draw_char(int mode, long num, float light, float x, float y)
    else
       glColor4f(1.0, 1.0, 1.0, light/255);
 
-   glTexCoord2f(s,     t);       glVertex2f(x,   y  );
-   glTexCoord2f(s+0.1, t);       glVertex2f(x+1, y  );
-   glTexCoord2f(s+0.1, t-0.166); glVertex2f(x+1, y-1);
-   glTexCoord2f(s,     t-0.166); glVertex2f(x,   y-1);
+   glTexCoord2f(s,     t);       glVertex3f(x,   y,   z);
+   glTexCoord2f(s+0.1, t);       glVertex3f(x+1, y,   z);
+   glTexCoord2f(s+0.1, t-0.166); glVertex3f(x+1, y-1, z);
+   glTexCoord2f(s,     t-0.166); glVertex3f(x,   y-1, z);
 }
 
 /* Draw flare around white characters */
-static void draw_flare(float x,float y)
+static void draw_flare(float x,float y,float z)
 {
-   glColor4f(0,9.4,0.3,.75);
+   glColor4f(0.9,0.4,0.3,.75);
 
-   glTexCoord2f(0,    0);    glVertex2f(x-1, y+1);
-   glTexCoord2f(0.75, 0);    glVertex2f(x+2, y+1);
-   glTexCoord2f(0.75, 0.75); glVertex2f(x+2, y-2);
-   glTexCoord2f(0,    0.75); glVertex2f(x-1, y-2);
+   glTexCoord2f(0,    0);    glVertex3f(x-1, y+1, z);
+   glTexCoord2f(0.75, 0);    glVertex3f(x+2, y+1, z);
+   glTexCoord2f(0.75, 0.75); glVertex3f(x+2, y-2, z);
+   glTexCoord2f(0,    0.75); glVertex3f(x-1, y-2, z);
 }
 
 /* Draw green or white text on screen */
 static void draw_text1(void)
 {
-   int x, y, i=0;
+   int x, y, i=0, b=0;
 
    /* For each character, from top-left to bottom-right of screen */
    for (y=text_y/2; y>-text_y/2; y--) {
       for (x=-text_x/2; x<text_x/2; x++, i++) {
+         int light = clamp(glyphs[i].alpha + pic_fade, 0, 255);
+         int depth = 0;
+
+         /* If the coordinate is in the range of the 3D picture, set depth */
+         if (x >= -rtext_x/2 && x<rtext_x/2) {
+            depth=clamp(pic[b]+(pic_fade-255), 0, 255);
+            b++;
+
+            /* Make far-back pixels darker */
+            light-=depth; if (light<0) light=0;
+         }
+
+         glyphs[i].z = (float)(255-depth)/32; /* Map depth (0-255) to coord */
+
          /* Highlight visible characters directly above a black stream */
          if (y!=text_y/2 && glyphs[i-text_x].alpha && !glyphs[i].alpha) {
             /* White character */
-            draw_char(2, glyphs[i].num, 127.5, x, y);
+            draw_char(2, glyphs[i].num, 127.5, x, y, glyphs[i].z);
          }
          else
          {
             /* Green character */
-            draw_char(1, glyphs[i].num, glyphs[i].alpha, x, y);
+            draw_char(1, glyphs[i].num, light, x, y, glyphs[i].z);
          }
       }
    }
@@ -264,7 +297,7 @@ static void draw_text2(void)
       for (x=-text_x/2; x<text_x/2; x++, i++) {
          /* Highlight visible characters directly above a black stream */
          if (glyphs[i].alpha && !glyphs[i+text_x].alpha) {
-            draw_flare(x, y);
+            draw_flare(x, y, glyphs[i].z);
          }
       }
    }
@@ -294,6 +327,24 @@ static void scroll(void)
       if (glyphs[i].alpha==255) glyphs[col].alpha=glyphs[col+text_x].alpha>>1;
       if (++col >=text_x) col=0;
    }
+
+   /* 3D picture transitions */
+   if (!classic) {
+      timer++;
+
+      if (timer < 250) {
+         /* Fading in */
+         if ((pic_fade+=3)>255) pic_fade=255;
+      } else {
+         /* Fading out */
+         if ((pic_fade-=3) < 0) pic_fade = 0;
+      }
+
+      /* Restart animation */
+      if (timer>400) {
+         timer=0;
+      }
+   }
 }
 
 static void make_change(void)
@@ -315,7 +366,7 @@ static void cbRenderScene(void)
 {  
 
    glMatrixMode(GL_MODELVIEW);
-   glTranslatef(0.0f,0.0f,-60.0F);
+   glTranslatef(0.0f,0.0f,VIEW_DEPTH);
    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
    glBindTexture(GL_TEXTURE_2D,1);
@@ -365,7 +416,7 @@ static void cbResizeScene(int width, int height)
    glViewport(0, 0, width, height);
    glMatrixMode(GL_PROJECTION);
    glLoadIdentity();
-   gluPerspective(45.0f,(GLfloat)width/(GLfloat)height,0.1f,200.0f);
+   gluPerspective(VIEW_ANGLE,(GLfloat)width/(GLfloat)height,0.1f,200.0f);
    glMatrixMode(GL_MODELVIEW);
 }
 
