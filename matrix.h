@@ -25,8 +25,8 @@
 #ifndef MATRIX_H
 #define MATRIX_H
 
-static void draw_char(int mode, long num, float light, float x, float y, float z);
-static void draw_flare(float x,float y, float z);
+static void draw_char(int mode, long num, GLubyte light, char x, char y, char z);
+static void draw_flare(char x,char y, char z);
 static void draw_text1(void);
 static void draw_text2(void);
 static void scroll(void);

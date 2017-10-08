@@ -1,7 +1,7 @@
 INCLUDE = -I/usr/X11R6/include/ 
 LIBDIR  = -L/usr/X11R6/lib 
 
-CFLAGS = -Wall -pedantic -ansi -Xlinker -Map=matrixgl.map
+CFLAGS = -g -Wall -pedantic -ansi -Xlinker -Map=matrixgl.map
 CC = gcc
 LIBRARIES = -lX11 -lEGL -lGL -lm
 

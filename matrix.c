@@ -37,14 +37,14 @@ extern void exit(int status);
 #include "gl.h"   /* OpenGL SC header */
 extern void glTexCoord2f( GLfloat s, GLfloat t );
 #define GL_QUADS                0x0007
-#define glTexParameterf(x,y,z) glTexParameteri(x, y, (GLint)(z + 0.5f))
-#define glPixelTransferf(x,z) glPixelTransferi(x, (GLint)(z + 0.5f))
 #define glTexEnvf(x,y,z) glTexEnvi(x, y, (GLint)(z + 0.5f))
 
 
 #include <EGL/egl.h>
 #include "matrix.h"  /* Prototypes */
 #include "fonts.h"
+
+#define MYGLES
 
 #define screen_height 900
 #define screen_width 1440
@@ -94,6 +94,16 @@ XEvent                  xev;
 EGLDisplay  egl_display;
 EGLContext  egl_context;
 EGLSurface  egl_surface;
+
+#ifdef MYGLES
+GLfloat texcoord2f_array[(text_x * text_y) * 2 * 4];
+GLint vertex3i_array[(text_x * text_y) * 3 * 4];
+GLubyte color4ub_array[(text_x * text_y) * 4 * 4];
+static int pos4f=0;
+static int pos3f=0;
+static int pos2f=0;
+static int posnb=0;
+#endif
 
 static unsigned int g_seed;
 
@@ -171,7 +181,7 @@ int main(int argc,char **argv)
    /* Initializations */
    for (i=0; i<text_x*text_y; i++) {
       glyphs[i].alpha = 253;
-      glyphs[i].num   = rand()%60;
+      glyphs[i].num   = (rand()%50)+10;
       glyphs[i].z     = 0;
    }
 
@@ -200,7 +210,6 @@ int main(int argc,char **argv)
    printf("gfx init time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
 
    while(1) {
-
       /* Check events */
       if (XCheckWindowEvent(dpy, win, KeyPressMask, &xev)) {
          cbKeyPressed(get_ascii_keycode(&xev), 0, 0);
@@ -209,7 +218,7 @@ int main(int argc,char **argv)
       gettimeofday (&tv1, NULL);
       /* Render frame */
       cbRenderScene();
-      glFlush();
+      glFinish();
 
       gettimeofday (&tv2, NULL);
       printf("elapsed time: %ld ms\n", ((tv2.tv_sec - tv1.tv_sec) * 1000 + (tv2.tv_usec - tv1.tv_usec)/1000));
@@ -220,40 +229,96 @@ int main(int argc,char **argv)
 }
 
 /* Draw character #num on the screen. */
-static void draw_char(int mode, long num, float light, float x, float y, float z)
+static void draw_char(int mode, long num, GLubyte light, char x, char y, char z)
 {
    /* The font texture is a grid of 10x6 characters. Texture coords are
-    * normalized to [0,1] and (s,t) is the top-left texel of the character
-    * #num. The division by 7 ensures that rows don't evenly line up. */
+    * normalized to [0,1] and (s,t) is the top-left texel of the character #num. */
    float s = (float)(num%10) / 10;
-   float t = 1 - (float)(num/10)/7;
+   float t = 1 - (float)(num/10)/6;
 
+#ifdef MYGLES
+   /*printf("%3d x %3d = %d\n",ix,iy,pos4f);*/
    if(mode==1)
-      glColor4f(0.0,0.7,0.0,light/255);
+   {
+    color4ub_array[pos4f+0] = color4ub_array[pos4f+4] = color4ub_array[pos4f+8]  = color4ub_array[pos4f+12] = 0;
+    color4ub_array[pos4f+1] = color4ub_array[pos4f+5] = color4ub_array[pos4f+9]  = color4ub_array[pos4f+13] = 180;
+    color4ub_array[pos4f+2] = color4ub_array[pos4f+6] = color4ub_array[pos4f+10] = color4ub_array[pos4f+14] = 0;
+    color4ub_array[pos4f+3] = color4ub_array[pos4f+7] = color4ub_array[pos4f+11] = color4ub_array[pos4f+15] = light;
+   }
    else
-      glColor4f(1.0, 1.0, 1.0, light/255);
+   {
+    color4ub_array[pos4f+0] = color4ub_array[pos4f+4] = color4ub_array[pos4f+8]  = color4ub_array[pos4f+12] = 255;
+    color4ub_array[pos4f+1] = color4ub_array[pos4f+5] = color4ub_array[pos4f+9]  = color4ub_array[pos4f+13] = 255;
+    color4ub_array[pos4f+2] = color4ub_array[pos4f+6] = color4ub_array[pos4f+10] = color4ub_array[pos4f+14] = 255;
+    color4ub_array[pos4f+3] = color4ub_array[pos4f+7] = color4ub_array[pos4f+11] = color4ub_array[pos4f+15] = light;
+   }
+    pos4f+=16;
 
-   glTexCoord2f(s,     t);       glVertex3f(x,   y,   z);
-   glTexCoord2f(s+0.1, t);       glVertex3f(x+1, y,   z);
-   glTexCoord2f(s+0.1, t-0.166); glVertex3f(x+1, y-1, z);
-   glTexCoord2f(s,     t-0.166); glVertex3f(x,   y-1, z);
+    texcoord2f_array[pos2f+0] = s;     texcoord2f_array[pos2f+1] = t; 
+    texcoord2f_array[pos2f+2] = s+0.1; texcoord2f_array[pos2f+3] = t; 
+    texcoord2f_array[pos2f+4] = s+0.1; texcoord2f_array[pos2f+5] = t-0.166; 
+    texcoord2f_array[pos2f+6] = s;     texcoord2f_array[pos2f+7] = t-0.166; 
+    pos2f+=8;
+
+    vertex3i_array[pos3f+0] = x;   vertex3i_array[pos3f+1]  = y;   vertex3i_array[pos3f+2]  = z;
+    vertex3i_array[pos3f+3] = x+1; vertex3i_array[pos3f+4]  = y;   vertex3i_array[pos3f+5]  = z;
+    vertex3i_array[pos3f+6] = x+1; vertex3i_array[pos3f+7]  = y-1; vertex3i_array[pos3f+8]  = z;
+    vertex3i_array[pos3f+9] = x;   vertex3i_array[pos3f+10] = y-1; vertex3i_array[pos3f+11] = z;
+    pos3f+=12;
+
+    posnb++;
+#else
+   if(mode==1)
+      glColor4ub(0,180,0,light);
+   else
+      glColor4ub(255, 255, 255, light);
+
+   glTexCoord2f(s,     t);       glVertex3i(x,   y,   z);
+   glTexCoord2f(s+0.1, t);       glVertex3i(x+1, y,   z);
+   glTexCoord2f(s+0.1, t-0.166); glVertex3i(x+1, y-1, z);
+   glTexCoord2f(s,     t-0.166); glVertex3i(x,   y-1, z);
+#endif
 }
 
 /* Draw flare around white characters */
-static void draw_flare(float x,float y,float z)
+static void draw_flare(char x,char y,char z)
 {
-   glColor4f(0.9,0.4,0.3,.75);
+#ifdef MYGLES
+   /*printf("%3d x %3d = %d\n",ix,iy,pos4f);*/
+    color4ub_array[pos4f+0] = color4ub_array[pos4f+4] = color4ub_array[pos4f+8]  = color4ub_array[pos4f+12] = 230;
+    color4ub_array[pos4f+1] = color4ub_array[pos4f+5] = color4ub_array[pos4f+9]  = color4ub_array[pos4f+13] = 100;
+    color4ub_array[pos4f+2] = color4ub_array[pos4f+6] = color4ub_array[pos4f+10] = color4ub_array[pos4f+14] = 75;
+    color4ub_array[pos4f+3] = color4ub_array[pos4f+7] = color4ub_array[pos4f+11] = color4ub_array[pos4f+15] = 190;
+    pos4f+=16;
 
-   glTexCoord2f(0,    0);    glVertex3f(x-1, y+1, z);
-   glTexCoord2f(0.75, 0);    glVertex3f(x+2, y+1, z);
-   glTexCoord2f(0.75, 0.75); glVertex3f(x+2, y-2, z);
-   glTexCoord2f(0,    0.75); glVertex3f(x-1, y-2, z);
+    texcoord2f_array[pos2f+0] = 0;    texcoord2f_array[pos2f+1] = 0; 
+    texcoord2f_array[pos2f+2] = 0.75; texcoord2f_array[pos2f+3] = 0; 
+    texcoord2f_array[pos2f+4] = 0.75; texcoord2f_array[pos2f+5] = 0.75; 
+    texcoord2f_array[pos2f+6] = 0;    texcoord2f_array[pos2f+7] = 0.75; 
+    pos2f+=8;
+
+    vertex3i_array[pos3f+0] = x-1; vertex3i_array[pos3f+1]  = y+1; vertex3i_array[pos3f+2]  = z;
+    vertex3i_array[pos3f+3] = x+2; vertex3i_array[pos3f+4]  = y+1; vertex3i_array[pos3f+5]  = z;
+    vertex3i_array[pos3f+6] = x+2; vertex3i_array[pos3f+7]  = y-2; vertex3i_array[pos3f+8]  = z;
+    vertex3i_array[pos3f+9] = x-1; vertex3i_array[pos3f+10] = y-2; vertex3i_array[pos3f+11] = z;
+    pos3f+=12;
+
+    posnb++;
+#else
+   glColor4ub(230,100,75,190);
+
+   glTexCoord2f(0,    0);    glVertex3i(x-1, y+1, z);
+   glTexCoord2f(0.75, 0);    glVertex3i(x+2, y+1, z);
+   glTexCoord2f(0.75, 0.75); glVertex3i(x+2, y-2, z);
+   glTexCoord2f(0,    0.75); glVertex3i(x-1, y-2, z);
+#endif
 }
 
 /* Draw green or white text on screen */
 static void draw_text1(void)
 {
-   int x, y, i=0, b=0;
+   char x, y;
+   int i=0, b=0;
 
    /* For each character, from top-left to bottom-right of screen */
    for (y=text_y/2; y>-text_y/2; y--) {
@@ -270,17 +335,17 @@ static void draw_text1(void)
             light-=depth; if (light<0) light=0;
          }
 
-         glyphs[i].z = depth; /* Map depth (0-255) to coord */
+         glyphs[i].z = (char)((128-depth/2)-120); /* Map depth (0-128) to coord */
 
          /* Highlight visible characters directly above a black stream */
          if (y!=text_y/2 && glyphs[i-text_x].alpha && !glyphs[i].alpha) {
             /* White character */
-            draw_char(2, glyphs[i].num, 127.5, x, y, (float)(255-glyphs[i].z)/32);
+            draw_char(2, glyphs[i].num, 127, x, y, glyphs[i].z);
          }
          else
          {
             /* Green character */
-            draw_char(1, glyphs[i].num, light, x, y, (float)(255-glyphs[i].z)/32);
+            draw_char(1, glyphs[i].num, light, x, y, glyphs[i].z);
          }
       }
    }
@@ -289,7 +354,8 @@ static void draw_text1(void)
 /* Draw flares for each column */
 static void draw_text2(void)
 {
-   int x, y, i=0;
+   char x, y;
+   int i=0;
 
    /* For each character from top-left to bottom-right of screen,
     * excluding the bottom-most row. */
@@ -297,7 +363,7 @@ static void draw_text2(void)
       for (x=-text_x/2; x<text_x/2; x++, i++) {
          /* Highlight visible characters directly above a black stream */
          if (glyphs[i].alpha && !glyphs[i+text_x].alpha) {
-            draw_flare(x, y, (float)(255-glyphs[i].z)/32);
+            draw_flare(x, y, glyphs[i].z);
          }
       }
    }
@@ -341,7 +407,7 @@ static void scroll(void)
       }
 
       /* Restart animation */
-      if (timer>400) {
+      if (timer>500) {
          timer=0;
       }
    }
@@ -350,17 +416,17 @@ static void scroll(void)
 static void make_change(void)
 {
    int i;
+
    for (i=0; i<rain_intensity; i++) {
       /* Random character changes */
       int r=rand() % (text_x * text_y);
-      glyphs[r].num = rand()%60;
+      glyphs[r].num = (rand()%50)+10;
 
       /* White nodes (1 in 5 chance of doing anything) */
       r=rand() % (text_x * 5);
       if (r<text_x && glyphs[r].alpha!=0) glyphs[r].alpha=255;
    }
 }
-
 
 static void cbRenderScene(void)
 {  
@@ -371,15 +437,55 @@ static void cbRenderScene(void)
 
    glBindTexture(GL_TEXTURE_2D,1);
    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_MODULATE);
-   glBegin(GL_QUADS); 
+#ifndef MYGLES
+   glBegin(GL_QUADS);
+#else
+    pos4f = pos3f = pos2f = posnb = 0;
+#endif
      draw_text1();
+#ifndef MYGLES
    glEnd();
+#else
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+ 
+    glVertexPointer(3, GL_INT, 0, vertex3i_array);
+    glColorPointer(4, GL_UNSIGNED_BYTE, 0, color4ub_array);
+    glTexCoordPointer(2, GL_FLOAT, 0, texcoord2f_array);
+
+    glDrawArrays(GL_QUADS,0,posnb*4);
+ 
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
+#endif
 
    glBindTexture(GL_TEXTURE_2D,2);
    glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE, GL_REPLACE);
+#ifndef MYGLES
    glBegin(GL_QUADS);
+#else
+    pos4f = pos3f = pos2f = posnb = 0;
+#endif
      draw_text2();
+#ifndef MYGLES
    glEnd();
+#else
+    glEnableClientState(GL_VERTEX_ARRAY);
+    glEnableClientState(GL_COLOR_ARRAY);
+    glEnableClientState(GL_TEXTURE_COORD_ARRAY);
+ 
+    glVertexPointer(3, GL_INT, 0, vertex3i_array);
+    glColorPointer(4, GL_UNSIGNED_BYTE, 0, color4ub_array);
+    glTexCoordPointer(2, GL_FLOAT, 0, texcoord2f_array);
+
+    glDrawArrays(GL_QUADS,0,posnb*4);
+ 
+    glDisableClientState(GL_TEXTURE_COORD_ARRAY);
+    glDisableClientState(GL_COLOR_ARRAY);
+    glDisableClientState(GL_VERTEX_ARRAY);
+#endif
 
    make_change();
    scroll();
@@ -420,6 +526,7 @@ static void cbResizeScene(int width, int height)
    glMatrixMode(GL_MODELVIEW);
 }
 
+/*#define MANUAL_MIPMAP*/
 static GLint gluBuild2DMipmaps(    GLenum target,
      GLint internalFormat,
      GLsizei width,
@@ -486,7 +593,7 @@ static void ourInit(void)
 
    /* Use GL_DECAL so texels aren't multipied by the colors on the screen, e.g
     * the black set by calls to glClear(GL_COLOR_BUFFER_BIT) */
-   glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_DECAL);
+   /*glTexEnvf(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_DECAL);*/
 
    glEnable(GL_BLEND);
    glEnable(GL_TEXTURE_2D);
